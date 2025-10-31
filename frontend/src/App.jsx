@@ -4,7 +4,7 @@ import MainLayout from "./layouts/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import Items from "./pages/Items";
 import Transactions from "./pages/Transactions";
-import Categories from "./pages/Categories";
+// import Categories from "./pages/Categories";
 import Reports from "./pages/Reports";
 
 
@@ -18,7 +18,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="items" element={<Items />} />
           <Route path="transactions" element={<Transactions />} />
-          <Route path="categories" element={<Categories />} />
+          {/* <Route path="categories" element={<Categories />} /> */}
           <Route path="reports" element={<Reports />} />
            
         </Route>

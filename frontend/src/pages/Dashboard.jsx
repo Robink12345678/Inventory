@@ -5,21 +5,30 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
     totalItems: 0,
     totalTransactions: 0,
-    totalCategories: 0,
-    totalIn: 0,
     totalOut: 0,
-    recentTransactions: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Listen for refresh events from Transactions component
+    const handleRefresh = () => {
+      console.log("🔄 Dashboard refresh triggered");
+      fetchDashboardData();
+    };
+    
+    window.addEventListener('dashboardRefresh', handleRefresh);
+    
+    return () => {
+      window.removeEventListener('dashboardRefresh', handleRefresh);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
     try {
-      setError("");
+      setError("")
       setLoading(true);
 
       console.log("🔄 Fetching dashboard data...");
@@ -29,19 +38,14 @@ const Dashboard = () => {
       setDashboardData({
         totalItems: res.data.totalItems || 0,
         totalTransactions: res.data.totalTransactions || 0,
-        totalCategories: res.data.totalCategories || 0,
-        totalIn: res.data.totalIn || 0,
-        // ✅ Show total number of OUT transactions instead of quantity
         totalOut: res.data.totalOutCount || res.data.totalOut || 0,
-        recentTransactions: res.data.recentTransactions || [],
       });
     } catch (err) {
       console.error("❌ Error fetching dashboard data:", err);
 
       if (err.response) {
         setError(
-          `Server Error: ${err.response.status} - ${
-            err.response.data?.error || "Unknown error"
+          `Server Error: ${err.response.status} - ${err.response.data?.error || "Unknown error"
           }`
         );
       } else if (err.request) {
@@ -55,17 +59,17 @@ const Dashboard = () => {
       setDashboardData({
         totalItems: 0,
         totalTransactions: 0,
-        totalCategories: 0,
-        totalIn: 0,
         totalOut: 0,
-        recentTransactions: [],
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshData = () => fetchDashboardData();
+  const refreshData = () => {
+    console.log("🔄 Manual refresh triggered");
+    fetchDashboardData();
+  };
 
   if (loading) {
     return (
@@ -85,12 +89,12 @@ const Dashboard = () => {
         <div>
           <h2 className="text-3xl font-bold text-gray-900 mb-1">Dashboard</h2>
           <p className="text-gray-500 text-sm">
-            Overview of your inventory status
+            Overview of your inventory status - Updates automatically when new transactions are created
           </p>
         </div>
         <button
           onClick={refreshData}
-          className="px-4 py-2 bg- text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
         >
           ↻ Refresh Data
         </button>
@@ -114,7 +118,7 @@ const Dashboard = () => {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Total Items */}
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
           <div className="flex items-start justify-between mb-4">
@@ -128,6 +132,7 @@ const Dashboard = () => {
               <span className="text-2xl">📦</span>
             </div>
           </div>
+          <p className="text-xs text-gray-500">Unique items in inventory</p>
         </div>
 
         {/* Total Transactions */}
@@ -143,122 +148,23 @@ const Dashboard = () => {
               <span className="text-2xl">🔄</span>
             </div>
           </div>
+          <p className="text-xs text-gray-500">All stock movements</p>
         </div>
 
-        {/* Categories */}
+        {/* Total OUT Transactions */}
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-gray-600 text-sm mb-1">Categories</p>
-              <p className="text-3xl font-bold text-gray-900">
-                {dashboardData.totalCategories}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
-              <span className="text-2xl">🗂️</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Stock IN */}
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Total Stock IN</p>
-              <p className="text-3xl font-bold text-green-600">
-                {dashboardData.totalIn}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
-              <span className="text-2xl">📥</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Total OUT */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 text-sm mb-1">
-                Total Items OUT (by count)
-              </p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-gray-600 text-sm mb-1">Stock OUT</p>
+              <p className="text-3xl font-bold text-red-600">
                 {dashboardData.totalOut}
               </p>
             </div>
-            <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
-              <span className="text-xl">📤</span>
+            <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
+              <span className="text-2xl">📤</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">
-            Recent Transactions
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm text-gray-600 font-normal">
-                  Item Name
-                </th>
-                <th className="px-6 py-3 text-left text-sm text-gray-600 font-normal">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-sm text-gray-600 font-normal">
-                  Quantity
-                </th>
-                <th className="px-6 py-3 text-left text-sm text-gray-600 font-normal">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboardData.recentTransactions.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="4"
-                    className="px-6 py-8 text-center text-gray-400 text-sm"
-                  >
-                    No recent transactions
-                  </td>
-                </tr>
-              ) : (
-                dashboardData.recentTransactions.map((transaction, index) => (
-                  <tr key={index} className="border-b border-gray-100">
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {transaction.itemName}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center text-xs font-medium ${
-                          transaction.type === "IN"
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {transaction.type === "IN" ? "↓" : "↑"}{" "}
-                        {transaction.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {transaction.quantity}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {transaction.date}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <p className="text-xs text-gray-500">Items issued out</p>
         </div>
       </div>
     </div>

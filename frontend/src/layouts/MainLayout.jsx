@@ -21,7 +21,7 @@ const MainLayout = () => {
           backgroundColor: "#106b4c",
           fontSize: "1.1rem",
           flexShrink: 0, // ✅ Prevent sidebar from resizing
-          height: "1700px", // ✅ Fixed height (no scroll)
+          height: "1600px", // ✅ Fixed height (no scroll)
           position: "sticky", // ✅ Stick to top
           top: 0,
         }}
@@ -73,7 +73,7 @@ const MainLayout = () => {
             </Link>
           </li>
 
-          <li>
+          {/* <li>
             <Link
               to="/categories"
               className={`flex items-center gap-4 py-3 px-3 rounded-lg transition-all duration-200 ${
@@ -85,7 +85,7 @@ const MainLayout = () => {
               <span>🗂️</span>
               <span>Categories</span>
             </Link>
-          </li>
+          </li> */}
 
           <li>
             <Link

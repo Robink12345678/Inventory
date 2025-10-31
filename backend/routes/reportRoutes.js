@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { getInventoryReport } = require("../controllers/reportController");
+const { getReports } = require("../controllers/reportController");
 
-router.get("/", getInventoryReport);
+router.get("/get", getReports);
 
 module.exports = router;

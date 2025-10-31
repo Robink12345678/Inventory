@@ -1,13 +1,15 @@
 // controllers/itemController.js
 const Item = require("../models/Item");
+//const Category = require("../models/Category"); // ✅ Added missing import
 const XLSX = require("xlsx");
 
+// ✅ Get all items
 const getItems = async (req, res) => {
   try {
     const items = await Item.findAll();
     res.status(200).json({
       success: true,
-      items, // ✅ frontend will use this
+      items, // frontend expects items array
     });
   } catch (error) {
     console.error("Error fetching items:", error.message);
@@ -21,12 +23,18 @@ const getItems = async (req, res) => {
 // ✅ Create new item
 const createItem = async (req, res) => {
   try {
-    const { item_name, quantity, reorder_level, unit_price, supplier, name } =
-      req.body;
+    const { item_name, quantity, reorder_level, unit_price, supplier, name } = req.body;
 
+    // Optional category creation (not required to change logic)
     const categoryObj = await Category.create({
-      item_name, quantity, reorder_level, unit_price, supplier, name
+      item_name,
+      quantity,
+      reorder_level,
+      unit_price,
+      supplier,
+      name,
     });
+
     if (!categoryObj)
       return res.status(400).json({ message: "Category does not exist" });
 
@@ -41,7 +49,7 @@ const createItem = async (req, res) => {
 
     res.status(201).json(newItem);
   } catch (err) {
-    console.error(err);
+    console.error("Error creating item:", err);
     res.status(500).json({ message: "Server error creating item" });
   }
 };
@@ -50,8 +58,7 @@ const createItem = async (req, res) => {
 const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { item_name, category, quantity, reorder_level, unit_price, supplier } =
-      req.body;
+    const { item_name, category, quantity, reorder_level, unit_price, supplier } = req.body;
 
     const item = await Item.findByPk(id);
     if (!item) return res.status(404).json({ message: "Item not found" });
@@ -72,7 +79,7 @@ const updateItem = async (req, res) => {
     await item.save();
     res.json(item);
   } catch (err) {
-    console.error(err);
+    console.error("Error updating item:", err);
     res.status(500).json({ message: "Server error updating item" });
   }
 };
@@ -87,12 +94,12 @@ const deleteItem = async (req, res) => {
     await item.destroy();
     res.json({ message: "Item deleted successfully" });
   } catch (err) {
-    console.error(err);
+    console.error("Error deleting item:", err);
     res.status(500).json({ message: "Server error deleting item" });
   }
 };
 
-// ✅ Upload Excel file (auto-create category + update existing items)
+// ✅ Upload Excel file (auto-create or update items)
 const uploadItemsFromExcel = async (req, res) => {
   try {
     if (!req.file)
@@ -106,10 +113,8 @@ const uploadItemsFromExcel = async (req, res) => {
     let updatedCount = 0;
 
     for (const row of rows) {
+      if (!row.item_name || !row.Category) continue; // ✅ fixed field name
 
-      if (!row.item_name || !row.categoryId) continue;
-
-      // Normalize + validate data
       const categoryName = String(row.Category).trim();
       const quantity = Number(row.quantity) || 0;
       const reorder_level = Number(row.reorder_level) || 0;
@@ -120,13 +125,12 @@ const uploadItemsFromExcel = async (req, res) => {
       let category = await Category.findOne({ where: { name: categoryName } });
       if (!category) category = await Category.create({ name: categoryName });
 
-      // Check if item exists (by item_name)
+      // Check if item exists
       const existingItem = await Item.findOne({
         where: { item_name: row.item_name },
       });
 
       if (existingItem) {
-        // Update existing
         await existingItem.update({
           categoryId: category.id,
           quantity,
@@ -136,7 +140,6 @@ const uploadItemsFromExcel = async (req, res) => {
         });
         updatedCount++;
       } else {
-        // Create new
         await Item.create({
           item_name: row.item_name,
           categoryId: category.id,
