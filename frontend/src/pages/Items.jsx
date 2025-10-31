@@ -4,10 +4,10 @@ import axios from "axios";
 
 const API_BASE = "http://localhost:5000/api";
 
-const ensureArray = (v) => (Array.isArray(v) ? v : []); // defensive helper
+const ensureArray = (v) => (Array.isArray(v) ? v : []);
 
 const Items = () => {
-  const [items, setItems] = useState([]); // always hold an array
+  const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -27,23 +27,40 @@ const Items = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  const [error, setError] = useState(null); // user visible message (success or error)
+  const [error, setError] = useState(null);
 
   // Fetch items on mount
   useEffect(() => {
     fetchItems();
   }, []);
 
-  // --- Fetch items with defensive handling of response shape ---
+  // Debug items data
+  useEffect(() => {
+    if (items.length > 0) {
+      console.log("📦 All items data:", items);
+      console.log("📂 Categories found:", categorySuggestions);
+
+      // Check first few items for category data
+      items.slice(0, 3).forEach((item, index) => {
+        console.log(`Item ${index + 1}:`, {
+          name: item.item_name,
+          category: item.category,
+          categoryType: typeof item.category,
+          hasCategory: !!item.category,
+          allFields: item
+        });
+      });
+    }
+  }, [items]);
+
+  // Fetch items
   const fetchItems = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const res = await axios.get(`${API_BASE}/items/get`);
-      // Debug log — see what's returned
       console.debug("fetchItems response.data:", res.data);
 
-      // Many APIs wrap result in { data: [...] } or { items: [...] } — handle common shapes
       let payload = res.data;
       if (payload == null) {
         setItems([]);
@@ -57,13 +74,11 @@ const Items = () => {
       } else if (Array.isArray(payload.items)) {
         setItems(payload.items);
       } else {
-        // If payload is an object that itself should be treated as an array,
-        // convert to array of values (rare), otherwise fallback to empty array.
         console.warn(
           "fetchItems: unexpected payload shape — expected array. Payload:",
           payload
         );
-        setItems([]); // fallback
+        setItems([]);
       }
     } catch (err) {
       console.error("Error fetching items", err);
@@ -77,77 +92,91 @@ const Items = () => {
     }
   };
 
-  // --- Input change handler ---
+  // Load test data
+  const loadTestData = async () => {
+    try {
+      setError(null);
+      const response = await axios.post(`${API_BASE}/test-data`);
+      console.log("✅ Test data loaded:", response.data);
+      setError("✅ Test data loaded successfully!");
+      fetchItems();
+    } catch (err) {
+      console.error("Error loading test data", err);
+      setError("❌ Failed to load test data");
+    }
+  };
+
+  // Input change handler
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((s) => ({ ...s, [name]: value }));
   };
 
-  // Basic client-side validation for item fields
+  // Basic client-side validation
   const validateItem = (data) => {
     if (!data.item_name || data.item_name.trim() === "")
       return "Item name is required.";
-    // quantity, reorder_level and unit_price should be numbers (if provided)
     if (data.quantity !== "" && isNaN(Number(data.quantity)))
       return "Quantity must be a number.";
     if (data.reorder_level !== "" && isNaN(Number(data.reorder_level)))
-      return "Reorder level must be a number.";
+      return "Reorder level must a number.";
     if (data.unit_price !== "" && isNaN(Number(data.unit_price)))
       return "Unit price must be a number.";
     return null;
   };
 
-  // --- Create / Update item ---
+  // Create / Update item
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
-    // validate
     const validationErr = validateItem(formData);
     if (validationErr) {
       setError(validationErr);
       return;
     }
 
-    // Prepare payload with casted numeric fields
     const payload = {
       item_name: formData.item_name,
       category: formData.category || null,
-      quantity:
-        formData.quantity === "" ? null : parseInt(Number(formData.quantity), 10),
-      reorder_level:
-        formData.reorder_level === ""
-          ? null
-          : parseInt(Number(formData.reorder_level), 10),
-      unit_price:
-        formData.unit_price === "" ? null : parseFloat(Number(formData.unit_price)),
+      quantity: formData.quantity === "" ? 0 : parseInt(Number(formData.quantity), 10),
+      reorder_level: formData.reorder_level === "" ? 0 : parseInt(Number(formData.reorder_level), 10),
+      unit_price: formData.unit_price === "" ? 0 : parseFloat(Number(formData.unit_price)),
       supplier: formData.supplier || null,
     };
 
+    console.log("🔄 Sending payload:", payload);
+
     try {
       if (editMode && currentItem && currentItem.id != null) {
-        // Update — adjust endpoint path if your backend expects a different route
-        await axios.put(`${API_BASE}/items/${currentItem.id}`, payload);
+        console.log(`📝 Updating item ${currentItem.id}`);
+        const response = await axios.put(`${API_BASE}/items/${currentItem.id}`, payload);
+        console.log("✅ Update response:", response.data);
         setError("✅ Item updated successfully");
       } else {
-        // Create — adjust endpoint path if necessary
-        // Some backends expect POST /items/create, others POST /items
-        // change path to match your backend.
-        await axios.post(`${API_BASE}/Items`, payload);
+        console.log("🆕 Creating new item");
+        const response = await axios.post(`${API_BASE}/items/create`, payload);
+        console.log("✅ Create response:", response.data);
         setError("✅ Item created successfully");
       }
-      fetchItems();
+
+      await fetchItems();
       closeModal();
+
     } catch (err) {
-      console.error("Error saving item", err);
-      setError(
-        err.response?.data?.message || "Failed to save item. Check server logs."
-      );
+      console.error("❌ Error saving item", err);
+      console.error("❌ Error response:", err.response?.data);
+
+      const errorMessage = err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Failed to save item. Check server logs.";
+      setError(`❌ ${errorMessage}`);
     }
   };
 
-  // --- Edit item (prefill modal) ---
+  // Edit item
   const handleEdit = (item) => {
+    console.log("✏️ Editing item:", item);
     setCurrentItem(item);
     setFormData({
       item_name: item.item_name ?? "",
@@ -161,13 +190,14 @@ const Items = () => {
     setShowModal(true);
   };
 
-  // --- Delete item ---
+  // Delete item
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     setError(null);
     try {
+      console.log(`🗑️ Deleting item ${id}`);
       await axios.delete(`${API_BASE}/items/${id}`);
-      setError("✅ Item deleted");
+      setError("✅ Item deleted successfully");
       fetchItems();
     } catch (err) {
       console.error("Error deleting item", err);
@@ -177,8 +207,9 @@ const Items = () => {
     }
   };
 
-  // --- Modal helpers ---
+  // Modal helpers
   const openAddModal = () => {
+    console.log("➕ Opening add modal");
     setFormData({
       item_name: "",
       category: "",
@@ -193,6 +224,7 @@ const Items = () => {
   };
 
   const closeModal = () => {
+    console.log("❌ Closing modal");
     setShowModal(false);
     setEditMode(false);
     setCurrentItem(null);
@@ -206,7 +238,7 @@ const Items = () => {
     });
   };
 
-  // --- Excel Upload ---
+  // Excel Upload
   const handleExcelFileSelect = (e) => {
     setError(null);
     const file = e.target.files?.[0] ?? null;
@@ -240,7 +272,6 @@ const Items = () => {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Adjust endpoint to your server's Excel upload route
       const res = await axios.post(`${API_BASE}/upload/items`, excelForm, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent) => {
@@ -274,7 +305,7 @@ const Items = () => {
     }
   };
 
-  // --- Derived values with defensive checks ---
+  // Derived values
   const safeItems = ensureArray(items);
   const lowStockItems = safeItems.filter(
     (it) =>
@@ -288,6 +319,27 @@ const Items = () => {
     new Set(safeItems.map((i) => i.category).filter(Boolean))
   );
 
+  // Function to get category color
+  const getCategoryColor = (category) => {
+    if (!category) return 'bg-gray-100 text-gray-700';
+
+    const categoryLower = category.toLowerCase();
+    if (categoryLower.includes('electronic') || categoryLower.includes('tech'))
+      return 'bg-purple-100 text-purple-700';
+    if (categoryLower.includes('office') || categoryLower.includes('supply'))
+      return 'bg-green-100 text-green-700';
+    if (categoryLower.includes('furniture') || categoryLower.includes('decor'))
+      return 'bg-orange-100 text-orange-700';
+    if (categoryLower.includes('tool') || categoryLower.includes('equipment'))
+      return 'bg-red-100 text-red-700';
+    if (categoryLower.includes('food') || categoryLower.includes('beverage'))
+      return 'bg-yellow-100 text-yellow-700';
+    if (categoryLower.includes('medical') || categoryLower.includes('health'))
+      return 'bg-pink-100 text-pink-700';
+
+    return 'bg-blue-100 text-blue-700'; // default color
+  };
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-start mb-6">
@@ -298,12 +350,17 @@ const Items = () => {
 
         <div className="flex gap-2">
           <button
+            onClick={loadTestData}
+            className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 text-sm font-medium"
+          >
+            🧪 Load Test Data
+          </button>
+          <button
             onClick={() => setShowExcelUpload((s) => !s)}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium flex items-center"
           >
             📊 Upload Excel
           </button>
-
           <button
             onClick={openAddModal}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
@@ -377,8 +434,8 @@ const Items = () => {
       {error && (
         <div
           className={`mb-4 p-4 rounded-md ${error.includes("Successfully") || error.startsWith("✅")
-            ? "bg-green-50 border border-green-200 text-green-800"
-            : "bg-red-50 border border-red-200 text-red-800"
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-red-50 border border-red-200 text-red-800"
             }`}
         >
           <div className="flex justify-between items-center">
@@ -402,7 +459,6 @@ const Items = () => {
       )}
 
       {/* Items Table */}
-      {/* Items Table with Advanced Design */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="p-4 flex flex-col sm:flex-row justify-between gap-3 items-center bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
           <input
@@ -464,7 +520,7 @@ const Items = () => {
                     colSpan="7"
                     className="px-6 py-8 text-center text-gray-400 text-sm italic"
                   >
-                    No items found
+                    No items found. Click "Load Test Data" to add sample items.
                   </td>
                 </tr>
               ) : (
@@ -472,21 +528,31 @@ const Items = () => {
                   <tr
                     key={item.id ?? `${item.item_name}_${Math.random()}`}
                     className={`hover:bg-blue-50 transition-all ${item.quantity != null &&
-                      item.reorder_level != null &&
-                      Number(item.quantity) <= Number(item.reorder_level)
-                      ? "bg-red-50 border-l-4 border-red-400"
-                      : "bg-white"
+                        item.reorder_level != null &&
+                        Number(item.quantity) <= Number(item.reorder_level)
+                        ? "bg-red-50 border-l-4 border-red-400"
+                        : "bg-white"
                       }`}
                   >
                     <td className="px-6 py-4 text-gray-900 font-medium">
                       {item.item_name}
                     </td>
-                    <td className="px-6 py-4 text-gray-700">{item.category ?? "—"}</td>
+                    <td className="px-6 py-4">
+                      {item.category ? (
+                        <span
+                          className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(item.category)}`}
+                        >
+                          {item.category}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-sm italic">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 rounded-md text-xs font-semibold ${Number(item.quantity) <= Number(item.reorder_level)
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-green-100 text-green-700"
                           }`}
                       >
                         {item.quantity ?? 0}
@@ -524,7 +590,7 @@ const Items = () => {
           </table>
         </div>
 
-        {/* Pagination footer (optional for long lists) */}
+        {/* Pagination footer */}
         <div className="flex justify-between items-center px-6 py-4 border-t bg-gray-50 text-sm text-gray-600">
           <span>Showing {safeItems.length} entries</span>
           <div className="flex gap-2">
@@ -538,130 +604,148 @@ const Items = () => {
         </div>
       </div>
 
-     {/* Add/Edit Modal */}
-{showModal && (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 animate-fadeIn">
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md transform transition-all scale-100 hover:scale-[1.01]">
-      <div className="p-6">
-        <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center justify-between">
-          {editMode ? "✏️ Edit Item" : "➕ Add New Item"}
-          <button
-            onClick={closeModal}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            ✕
-          </button>
-        </h3>
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md transform transition-all scale-100 hover:scale-[1.01]">
+            <div className="p-6">
+              <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center justify-between">
+                {editMode ? "✏️ Edit Item" : "➕ Add New Item"}
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </h3>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Item Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-            <input
-              type="text"
-              name="item_name"
-              placeholder="Enter item name"
-              value={formData.item_name}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-            />
-          </div>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Item Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Item Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="item_name"
+                    placeholder="Enter item name"
+                    value={formData.item_name}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                  />
+                </div>
 
-          {/* Category */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <input
-              list="category-list"
-              name="category"
-              placeholder="Select or type category"
-              value={formData.category}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-            />
-            <datalist id="category-list">
-              {categorySuggestions.map((cat, idx) => (
-                <option key={idx} value={cat} />
-              ))}
-            </datalist>
-          </div>
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
+                  </label>
+                  <input
+                    list="category-list"
+                    name="category"
+                    placeholder="Select or type category"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                  />
+                  <datalist id="category-list">
+                    {categorySuggestions.map((cat, idx) => (
+                      <option key={idx} value={cat} />
+                    ))}
+                  </datalist>
+                  {categorySuggestions.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Suggestions: {categorySuggestions.join(", ")}
+                    </p>
+                  )}
+                </div>
 
-          {/* Quantity + Reorder Level (Side by Side) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-              <input
-                type="number"
-                name="quantity"
-                placeholder="0"
-                value={formData.quantity}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-              />
+                {/* Quantity + Reorder Level (Side by Side) */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      name="quantity"
+                      placeholder="0"
+                      min="0"
+                      value={formData.quantity}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Reorder Level
+                    </label>
+                    <input
+                      type="number"
+                      name="reorder_level"
+                      placeholder="0"
+                      min="0"
+                      value={formData.reorder_level}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Unit Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Unit Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="unit_price"
+                    placeholder="0.00"
+                    min="0"
+                    value={formData.unit_price}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Supplier */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Supplier
+                  </label>
+                  <input
+                    type="text"
+                    name="supplier"
+                    placeholder="Supplier name"
+                    value={formData.supplier}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex justify-end gap-3 pt-5">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 active:scale-95 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium rounded-lg hover:from-blue-700 hover:to-blue-600 shadow-sm active:scale-95 transition-all"
+                  >
+                    {editMode ? "Update Item" : "Save Item"}
+                  </button>
+                </div>
+              </form>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
-              <input
-                type="number"
-                name="reorder_level"
-                placeholder="0"
-                value={formData.reorder_level}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-              />
-            </div>
           </div>
-
-          {/* Unit Price */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price</label>
-            <input
-              type="number"
-              step="0.01"
-              name="unit_price"
-              placeholder="0.00"
-              value={formData.unit_price}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-            />
-          </div>
-
-          {/* Supplier */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-            <input
-              type="text"
-              name="supplier"
-              placeholder="Supplier name"
-              value={formData.supplier}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-            />
-          </div>
-
-          {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-5">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 active:scale-95 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium rounded-lg hover:from-blue-700 hover:to-blue-600 shadow-sm active:scale-95 transition-all"
-            >
-              {editMode ? "Update Item" : "Save Item"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-)}
-
-    
+        </div>
+      )}
     </div>
   );
 };

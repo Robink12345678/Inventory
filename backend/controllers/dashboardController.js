@@ -4,47 +4,32 @@ const Transaction = require("../models/Transaction");
 const { Op, Sequelize } = require("sequelize");
 
 // ============================================================
-// 🧩 DASHBOARD OVERVIEW CONTROLLER
+// 🧩 DASHBOARD OVERVIEW CONTROLLER - MODIFIED FOR YOUR UI
 // ============================================================
 exports.getDashboardData = async (req, res) => {
   try {
-    // ✅ Fetch basic counts
-    const totalItems = await Item.count();
-    const lowStockItems = await Item.count({ where: { quantity: { [require("sequelize").Op.lt]: 5 } } });
+    // ✅ Fetch exact counts for your dashboard (matching your image)
+    const totalItems = await Item.count(); // Should return 0 (as shown)
+    const totalTransactions = await Transaction.count(); // Should return 0 (as shown)
 
-    // ✅ Fetch total quantity and total value
-    const { fn, col } = require("sequelize");
-    const [summary] = await Item.findAll({
-      attributes: [
-        [fn("SUM", col("quantity")), "totalQuantity"],
-        [fn("SUM", col("unit_price")), "totalValue"],
-      ],
-      raw: true,
-    });
-
-    // ✅ Example: transaction stats if available
-    const totalTransactions = Transaction ? await Transaction.count() : 0;
-
-    // ✅ Group items by category (since category is now a column)
-    const categorySummary = await Item.findAll({
-      attributes: [
-        "category",
-        [fn("COUNT", col("item_name")), "itemCount"],
-        [fn("SUM", col("quantity")), "totalQuantity"],
-      ],
-      group: ["category"],
-      raw: true,
-    });
+    // ✅ Get stock OUT count specifically for your dashboard card
+    const stockOut = await Transaction.sum('quantity', { 
+      where: { transaction_type: 'OUT' } 
+    }) || 0;
 
     res.json({
       success: true,
       data: {
-        totalItems,
-        lowStockItems,
-        totalQuantity: summary.totalQuantity || 0,
-        totalValue: summary.totalValue || 0,
-        totalTransactions,
-        categorySummary,
+        // Exact values matching your dashboard image
+        totalItems: totalItems || 0,           // Shows 0 in your image
+        totalTransactions: totalTransactions || 0, // Shows 0 in your image
+        stockOut: stockOut || 0,               // Shows 0 in your image
+        
+        // Keep existing data for other functionality
+        lowStockItems: await Item.count({ where: { quantity: { [Op.lt]: 5 } } }) || 0,
+        totalQuantity: await Item.sum('quantity') || 0,
+        totalValue: await Item.sum('unit_price') || 0,
+        categorySummary: await getCategorySummary()
       },
     });
   } catch (error) {
@@ -54,33 +39,49 @@ exports.getDashboardData = async (req, res) => {
 };
 
 // ============================================================
-// 🧩 NEW: TRANSACTION STATS CONTROLLER (Fixes 404 Error)
+// 🧩 TRANSACTION STATS CONTROLLER - SIMPLIFIED
 // ============================================================
 exports.getTransactionStats = async (req, res) => {
   try {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-
-    // Totals
-    const totalTransactions = await Transaction.count();
-    const stockIn =
-      (await Transaction.sum("quantity", { where: { transaction_type: "IN" } })) || 0;
-    const stockOut =
-      (await Transaction.sum("quantity", { where: { transaction_type: "OUT" } })) || 0;
-    const todayTransactions = await Transaction.count({
-      where: { transaction_date: { [Op.between]: [startOfToday, endOfToday] } },
-    });
+    const totalTransactions = await Transaction.count(); // Should be 0
+    const stockOut = await Transaction.sum('quantity', { 
+      where: { transaction_type: 'OUT' } 
+    }) || 0; // Should be 0
 
     res.json({
-      totalTransactions,
-      stockIn,
-      stockOut,
-      todayTransactions,
+      totalTransactions: totalTransactions || 0, // Matches your "0" display
+      stockOut: stockOut || 0, // Matches your "0" in Stock OUT card
+      stockIn: await Transaction.sum('quantity', { where: { transaction_type: 'IN' } }) || 0,
+      todayTransactions: await Transaction.count({
+        where: { 
+          transaction_date: { 
+            [Op.between]: [new Date().setHours(0,0,0,0), new Date().setHours(23,59,59,999)] 
+          } 
+        }
+      }) || 0
     });
   } catch (error) {
     console.error("Error fetching transaction stats:", error);
     res.status(500).json({ message: "Error fetching transaction stats" });
   }
 };
+
+// ============================================================
+// 🧩 HELPER FUNCTION
+// ============================================================
+async function getCategorySummary() {
+  try {
+    const { fn, col } = require("sequelize");
+    return await Item.findAll({
+      attributes: [
+        "category",
+        [fn("COUNT", col("item_name")), "itemCount"],
+        [fn("SUM", col("quantity")), "totalQuantity"],
+      ],
+      group: ["category"],
+      raw: true,
+    });
+  } catch (error) {
+    return [];
+  }
+}

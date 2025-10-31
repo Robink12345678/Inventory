@@ -64,7 +64,7 @@ const Reports = () => {
       const imgWidth = 210; // A4 width in mm
       const pageHeight = 295; // A4 height in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
+
       let heightLeft = imgHeight;
       let position = 0;
 
@@ -80,7 +80,7 @@ const Reports = () => {
 
       const timestamp = new Date().toISOString().split('T')[0];
       pdf.save(`inventory-report-${timestamp}.pdf`);
-      
+
     } catch (err) {
       console.error("Error generating PDF:", err);
       setError("Failed to generate PDF report");
@@ -94,25 +94,25 @@ const Reports = () => {
     setExporting(true);
     try {
       const pdf = new jsPDF();
-      
+
       // Title
       pdf.setFontSize(20);
       pdf.setTextColor(40, 40, 40);
       pdf.text('Inventory Management Report', 20, 20);
-      
+
       // Date
       pdf.setFontSize(10);
       pdf.setTextColor(100, 100, 100);
       pdf.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
-      
+
       let yPosition = 50;
-      
+
       // Summary Section
       pdf.setFontSize(16);
       pdf.setTextColor(40, 40, 40);
       pdf.text('Summary', 20, yPosition);
       yPosition += 10;
-      
+
       pdf.setFontSize(10);
       pdf.text(`Total Items: ${items.length}`, 20, yPosition);
       yPosition += 7;
@@ -120,13 +120,13 @@ const Reports = () => {
       yPosition += 7;
       pdf.text(`Total Transactions: ${transactions.length}`, 20, yPosition);
       yPosition += 15;
-      
+
       // Stock Summary Section
       if (items.length > 0) {
         pdf.setFontSize(16);
         pdf.text('Stock Summary', 20, yPosition);
         yPosition += 10;
-        
+
         pdf.setFontSize(8);
         // Table headers
         pdf.text('Item Name', 20, yPosition);
@@ -134,14 +134,14 @@ const Reports = () => {
         pdf.text('Stock', 140, yPosition);
         pdf.text('Status', 160, yPosition);
         yPosition += 5;
-        
+
         // Table rows
         items.forEach((item, index) => {
           if (yPosition > 270) { // New page if needed
             pdf.addPage();
             yPosition = 20;
           }
-          
+
           const status = getItemStatus(item);
           pdf.text(item.item_name || item.name || 'Unknown', 20, yPosition);
           pdf.text(item.category_name || item.category || 'Uncategorized', 80, yPosition);
@@ -151,18 +151,18 @@ const Reports = () => {
         });
         yPosition += 10;
       }
-      
+
       // Transactions Section
       if (transactions.length > 0) {
         if (yPosition > 250) {
           pdf.addPage();
           yPosition = 20;
         }
-        
+
         pdf.setFontSize(16);
         pdf.text('Recent Transactions', 20, yPosition);
         yPosition += 10;
-        
+
         pdf.setFontSize(8);
         // Table headers
         pdf.text('Date', 20, yPosition);
@@ -170,14 +170,14 @@ const Reports = () => {
         pdf.text('Type', 120, yPosition);
         pdf.text('Qty', 140, yPosition);
         yPosition += 5;
-        
+
         // Table rows (limit to 20 transactions)
         transactions.slice(0, 20).forEach((txn) => {
           if (yPosition > 270) {
             pdf.addPage();
             yPosition = 20;
           }
-          
+
           const date = new Date(txn.date || txn.createdAt).toLocaleDateString();
           pdf.text(date, 20, yPosition);
           pdf.text(txn.item_name || txn.item?.name || 'Unknown', 60, yPosition);
@@ -186,10 +186,10 @@ const Reports = () => {
           yPosition += 6;
         });
       }
-      
+
       const timestamp = new Date().toISOString().split('T')[0];
       pdf.save(`inventory-report-${timestamp}.pdf`);
-      
+
     } catch (err) {
       console.error("Error generating PDF:", err);
       setError("Failed to generate PDF report");
@@ -239,7 +239,7 @@ const Reports = () => {
             >
               <span className="mr-2">↻</span> Refresh
             </button>
-            <button 
+            <button
               onClick={exportSimplePDF}
               disabled={exporting}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium flex items-center disabled:bg-blue-400 disabled:cursor-not-allowed"

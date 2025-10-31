@@ -1,7 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const { getReports } = require("../controllers/reportController");
+const reportController = require("../controllers/reportController");
 
-router.get("/get", getReports);
+// Main reports endpoint
+router.get("/get", reportController.getReports);
+
+// Additional report endpoints
+router.get("/stock-summary", reportController.getStockSummary);
+router.get("/transaction-report", reportController.getTransactionReport);
 
 module.exports = router;

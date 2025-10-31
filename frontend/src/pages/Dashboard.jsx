@@ -28,25 +28,28 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      setError("")
+      setError("");
       setLoading(true);
 
       console.log("🔄 Fetching dashboard data...");
-      const res = await axios.get("http://localhost:5000/api/dashboard");
+      
+      // ✅ CORRECTED: Use only the dashboard endpoint that has all data
+      const response = await axios.get("http://localhost:5000/api/dashboard/get");
 
-      console.log("✅ Dashboard data received:", res.data);
+      console.log("✅ Dashboard data received:", response.data);
+
+      // ✅ CORRECTED: Map data from the single endpoint
       setDashboardData({
-        totalItems: res.data.totalItems || 0,
-        totalTransactions: res.data.totalTransactions || 0,
-        totalOut: res.data.totalOutCount || res.data.totalOut || 0,
+        totalItems: response.data.data?.totalItems || 0,
+        totalTransactions: response.data.data?.totalTransactions || 0,
+        totalOut: response.data.data?.stockOut || 0,
       });
     } catch (err) {
       console.error("❌ Error fetching dashboard data:", err);
 
       if (err.response) {
         setError(
-          `Server Error: ${err.response.status} - ${err.response.data?.error || "Unknown error"
-          }`
+          `Server Error: ${err.response.status} - ${err.response.data?.message || "Unknown error"}`
         );
       } else if (err.request) {
         setError(
@@ -56,6 +59,7 @@ const Dashboard = () => {
         setError("Unexpected Error: " + err.message);
       }
 
+      // Fallback to zero values
       setDashboardData({
         totalItems: 0,
         totalTransactions: 0,

@@ -45,23 +45,22 @@ const upload = multer({
 });
 
 // ✅ Import models
-const Item = require("./models/Item");
+const db = require("./models");
+const Item = db.Item;
 
 // ✅ Import routes
 const itemRoutes = require("./routes/itemRoutes");
-const transactionRoutes = require("./routes/transactionRoutes");
-const dashboardRoutes = require("./routes/dashboardRoutes");
-const inventoryRoutes = require("./routes/inventoryRoutes");
-const reportRoutes = require("./routes/reportRoutes");
+const transactionRoutes = require("./routes/transactionRoutes")
+const reportRoutes = require("./routes/reportRoutes")
+const dashboardRoutes = require("./routes/dashboardRoutes")
 
 // ✅ Register routes
 app.use("/api/items", itemRoutes);
-app.use("/api/transactions", transactionRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/inventory", inventoryRoutes);
-app.use("/api/reports", reportRoutes);
+app.use("/api/transactions", transactionRoutes)
+app.use("/api/reports", reportRoutes)
+app.use("/api/dashboard", dashboardRoutes)
 
-// ✅ Excel Upload Route (no Category table)
+// ✅ Excel Upload Route
 app.post("/api/upload/items", upload.single("excelFile"), async (req, res) => {
   try {
     if (!req.file) {
@@ -92,7 +91,8 @@ app.post("/api/upload/items", upload.single("excelFile"), async (req, res) => {
             row.category ||
             row.Category ||
             row["Category Name"] ||
-            row.category_name,
+            row.category_name ||
+            null,
           quantity:
             parseInt(row.quantity || row.Quantity || row.QTY || row.qty) || 0,
           reorder_level:
@@ -110,14 +110,13 @@ app.post("/api/upload/items", upload.single("excelFile"), async (req, res) => {
               row["unit price"] ||
               row.price
             ) || 0,
-          supplier: row.supplier || row.Supplier || row.vendor || "",
+          supplier: row.supplier || row.Supplier || row.vendor || null,
         };
 
         console.log("Processing row:", itemData);
 
         // ✅ Validation
         if (!itemData.item_name) throw new Error("Missing item_name");
-        if (!itemData.category) throw new Error("Missing category");
 
         // ✅ Check if item already exists (by name)
         const existingItem = await Item.findOne({
@@ -167,6 +166,69 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ✅ Test Data Endpoint
+app.post("/api/test-data", async (req, res) => {
+  try {
+    // Clear existing items
+    await Item.destroy({ where: {} });
+
+    // Create test items with categories
+    const testItems = [
+      {
+        item_name: "Laptop Dell XPS",
+        category: "Electronics",
+        quantity: 15,
+        reorder_level: 5,
+        unit_price: 1299.99,
+        supplier: "Dell Technologies"
+      },
+      {
+        item_name: "Office Chair",
+        category: "Furniture",
+        quantity: 8,
+        reorder_level: 3,
+        unit_price: 199.99,
+        supplier: "Furniture World"
+      },
+      {
+        item_name: "Wireless Mouse",
+        category: "Electronics",
+        quantity: 25,
+        reorder_level: 10,
+        unit_price: 29.99,
+        supplier: "Tech Accessories Inc"
+      },
+      {
+        item_name: "Notebooks Pack",
+        category: "Office Supplies",
+        quantity: 50,
+        reorder_level: 20,
+        unit_price: 12.99,
+        supplier: "Paper Products Co"
+      },
+      {
+        item_name: "Desk Lamp",
+        category: "Furniture",
+        quantity: 12,
+        reorder_level: 5,
+        unit_price: 45.50,
+        supplier: "Home Essentials"
+      }
+    ];
+
+    await Item.bulkCreate(testItems);
+
+    res.json({
+      success: true,
+      message: "Test data created successfully",
+      items: testItems
+    });
+  } catch (error) {
+    console.error("❌ Test data error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ✅ Root Route
 app.get("/", (req, res) => {
   res.send("Inventory Management API running...");
@@ -184,7 +246,7 @@ app.use((error, req, res, next) => {
 
 // ✅ Start Server
 sequelize
-  .sync({ alter: true })
+  .sync({ force: false })
   .then(() => {
     console.log("✅ Database synced successfully");
     app.listen(5000, () => console.log("✅ Server running on port 5000"));

@@ -1,168 +1,231 @@
-// controllers/itemController.js
-const Item = require("../models/Item");
-//const Category = require("../models/Category"); // ✅ Added missing import
-const XLSX = require("xlsx");
+const db = require("../models");
+const Item = db.Item;
 
-// ✅ Get all items
+// @desc    Get all items
+// @route   GET /api/items/get
+// @access  Public
 const getItems = async (req, res) => {
   try {
-    const items = await Item.findAll();
-    res.status(200).json({
-      success: true,
-      items, // frontend expects items array
+    console.log("🔄 Fetching all items...");
+    
+    const items = await Item.findAll({
+      order: [['createdAt', 'DESC']]
     });
-  } catch (error) {
-    console.error("Error fetching items:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch items",
+
+    console.log(`✅ Found ${items.length} items`);
+    console.log("📦 Sample item:", items.length > 0 ? {
+      id: items[0].id,
+      name: items[0].item_name,
+      category: items[0].category,
+      hasCategory: !!items[0].category
+    } : "No items");
+    
+    res.json(items);
+    
+  } catch (err) {
+    console.error("❌ Error fetching items:", err);
+    res.status(500).json({ 
+      message: "Server error fetching items",
+      error: err.message 
     });
   }
 };
 
-// ✅ Create new item
+// @desc    Create a new item
+// @route   POST /api/items/create
+// @access  Public
 const createItem = async (req, res) => {
   try {
-    const { item_name, quantity, reorder_level, unit_price, supplier, name } = req.body;
+    const { item_name, category, quantity, reorder_level, unit_price, supplier } = req.body;
 
-    // Optional category creation (not required to change logic)
-    const categoryObj = await Category.create({
-      item_name,
-      quantity,
-      reorder_level,
-      unit_price,
-      supplier,
-      name,
-    });
+    console.log("🔄 Creating new item:", { item_name, category });
 
-    if (!categoryObj)
-      return res.status(400).json({ message: "Category does not exist" });
+    // Validate required fields
+    if (!item_name || item_name.trim() === "") {
+      return res.status(400).json({ message: "Item name is required" });
+    }
 
+    // Create the item
     const newItem = await Item.create({
-      item_name,
-      name: name || "",
-      quantity: Number(quantity) || 0,
-      reorder_level: Number(reorder_level) || 0,
-      unit_price: Number(unit_price) || 0,
-      supplier: supplier || "",
+      item_name: item_name.trim(),
+      category: category && category.trim() !== "" ? category.trim() : null,
+      quantity: quantity !== undefined && quantity !== null && quantity !== "" ? Number(quantity) : 0,
+      reorder_level: reorder_level !== undefined && reorder_level !== null && reorder_level !== "" ? Number(reorder_level) : 0,
+      unit_price: unit_price !== undefined && unit_price !== null && unit_price !== "" ? parseFloat(unit_price) : 0,
+      supplier: supplier && supplier.trim() !== "" ? supplier.trim() : null
     });
 
-    res.status(201).json(newItem);
+    console.log("✅ Item created successfully:", newItem.toJSON());
+    
+    res.status(201).json({
+      message: "Item created successfully",
+      item: newItem
+    });
+
   } catch (err) {
-    console.error("Error creating item:", err);
-    res.status(500).json({ message: "Server error creating item" });
+    console.error("❌ Error creating item:", err);
+    
+    // Handle Sequelize validation errors
+    if (err.name === 'SequelizeValidationError') {
+      const errors = err.errors.map(error => error.message);
+      return res.status(400).json({ 
+        message: "Validation error",
+        errors 
+      });
+    }
+    
+    // Handle duplicate entry
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ 
+        message: "Item with this name already exists" 
+      });
+    }
+
+    res.status(500).json({ 
+      message: "Server error creating item",
+      error: err.message 
+    });
   }
 };
 
-// ✅ Update existing item
+// @desc    Update an item
+// @route   PUT /api/items/:id
+// @access  Public
 const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
     const { item_name, category, quantity, reorder_level, unit_price, supplier } = req.body;
 
-    const item = await Item.findByPk(id);
-    if (!item) return res.status(404).json({ message: "Item not found" });
+    console.log("🔄 Updating item ID:", id);
+    console.log("📦 Request body:", req.body);
 
-    if (category) {
-      const categoryObj = await Category.findOne({ where: { name: category } });
-      if (!categoryObj)
-        return res.status(400).json({ message: "Category does not exist" });
-      item.categoryId = categoryObj.id;
+    // Validate ID
+    if (!id) {
+      return res.status(400).json({ message: "Item ID is required" });
     }
 
-    item.item_name = item_name || item.item_name;
-    item.quantity = Number(quantity) || item.quantity;
-    item.reorder_level = Number(reorder_level) || item.reorder_level;
-    item.unit_price = Number(unit_price) || item.unit_price;
-    item.supplier = supplier || item.supplier;
+    // Find the item
+    const item = await Item.findByPk(id);
+    if (!item) {
+      console.log("❌ Item not found:", id);
+      return res.status(404).json({ message: "Item not found" });
+    }
 
-    await item.save();
-    res.json(item);
+    console.log("✅ Found item:", item.toJSON());
+
+    // Update fields only if provided
+    const updateData = {};
+    
+    if (item_name !== undefined) {
+      updateData.item_name = item_name.trim();
+    }
+    
+    if (category !== undefined) {
+      updateData.category = category && category.trim() !== "" ? category.trim() : null;
+    }
+    
+    if (quantity !== undefined) {
+      updateData.quantity = quantity === "" ? 0 : Number(quantity);
+    }
+    
+    if (reorder_level !== undefined) {
+      updateData.reorder_level = reorder_level === "" ? 0 : Number(reorder_level);
+    }
+    
+    if (unit_price !== undefined) {
+      updateData.unit_price = unit_price === "" ? 0 : parseFloat(unit_price);
+    }
+    
+    if (supplier !== undefined) {
+      updateData.supplier = supplier === "" ? null : supplier.trim();
+    }
+
+    console.log("📝 Update data:", updateData);
+
+    // Update the item
+    await Item.update(updateData, {
+      where: { id }
+    });
+
+    // Fetch the updated item
+    const updatedItem = await Item.findByPk(id);
+
+    console.log("✅ Item updated successfully:", updatedItem.toJSON());
+    
+    res.json({
+      message: "Item updated successfully",
+      item: updatedItem
+    });
+
   } catch (err) {
-    console.error("Error updating item:", err);
-    res.status(500).json({ message: "Server error updating item" });
+    console.error("❌ Error updating item:", err);
+    
+    // Handle Sequelize validation errors
+    if (err.name === 'SequelizeValidationError') {
+      const errors = err.errors.map(error => error.message);
+      return res.status(400).json({ 
+        message: "Validation error",
+        errors 
+      });
+    }
+    
+    // Handle duplicate entry
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ 
+        message: "Item with this name already exists" 
+      });
+    }
+
+    res.status(500).json({ 
+      message: "Server error updating item",
+      error: err.message 
+    });
   }
 };
 
-// ✅ Delete item
+// @desc    Delete an item
+// @route   DELETE /api/items/:id
+// @access  Public
 const deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const item = await Item.findByPk(id);
-    if (!item) return res.status(404).json({ message: "Item not found" });
 
-    await item.destroy();
-    res.json({ message: "Item deleted successfully" });
-  } catch (err) {
-    console.error("Error deleting item:", err);
-    res.status(500).json({ message: "Server error deleting item" });
-  }
-};
+    console.log("🔄 Deleting item ID:", id);
 
-// ✅ Upload Excel file (auto-create or update items)
-const uploadItemsFromExcel = async (req, res) => {
-  try {
-    if (!req.file)
-      return res.status(400).json({ message: "No Excel file uploaded" });
-
-    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
-
-    let createdCount = 0;
-    let updatedCount = 0;
-
-    for (const row of rows) {
-      if (!row.item_name || !row.Category) continue; // ✅ fixed field name
-
-      const categoryName = String(row.Category).trim();
-      const quantity = Number(row.quantity) || 0;
-      const reorder_level = Number(row.reorder_level) || 0;
-      const unit_price = Number(row.unit_price) || 0;
-      const supplier = row.supplier ? String(row.supplier).trim() : "";
-
-      // Find or create category
-      let category = await Category.findOne({ where: { name: categoryName } });
-      if (!category) category = await Category.create({ name: categoryName });
-
-      // Check if item exists
-      const existingItem = await Item.findOne({
-        where: { item_name: row.item_name },
-      });
-
-      if (existingItem) {
-        await existingItem.update({
-          categoryId: category.id,
-          quantity,
-          reorder_level,
-          unit_price,
-          supplier,
-        });
-        updatedCount++;
-      } else {
-        await Item.create({
-          item_name: row.item_name,
-          categoryId: category.id,
-          quantity,
-          reorder_level,
-          unit_price,
-          supplier,
-        });
-        createdCount++;
-      }
+    // Validate ID
+    if (!id) {
+      return res.status(400).json({ message: "Item ID is required" });
     }
 
-    res.json({
-      message: `✅ Excel processed successfully`,
-      created: createdCount,
-      updated: updatedCount,
-      total: createdCount + updatedCount,
+    // Find the item first to check if it exists
+    const item = await Item.findByPk(id);
+    if (!item) {
+      console.log("❌ Item not found:", id);
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    console.log("✅ Found item to delete:", item.item_name);
+
+    // Delete the item
+    await Item.destroy({
+      where: { id }
     });
+
+    console.log("✅ Item deleted successfully");
+    
+    res.json({
+      message: "Item deleted successfully",
+      deletedItem: {
+        id: item.id,
+        item_name: item.item_name
+      }
+    });
+
   } catch (err) {
-    console.error("Excel upload error:", err);
-    res.status(500).json({
-      message: "Failed to process Excel file",
-      error: err.message,
+    console.error("❌ Error deleting item:", err);
+    res.status(500).json({ 
+      message: "Server error deleting item",
+      error: err.message 
     });
   }
 };
@@ -171,6 +234,5 @@ module.exports = {
   getItems,
   createItem,
   updateItem,
-  deleteItem,
-  uploadItemsFromExcel,
+  deleteItem
 };
