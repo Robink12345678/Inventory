@@ -1,55 +1,36 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/db');
+const { DataTypes } = require("sequelize");
 
-const Item = sequelize.define('Item', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  item_name: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      notEmpty: true
-    }
-  },
-  category: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    defaultValue: null
-  },
-  quantity: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0,
-    validate: {
-      min: 0
-    }
-  },
-  reorder_level: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0,
-    validate: {
-      min: 0
-    }
-  },
-  unit_price: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    defaultValue: 0.00,
-    validate: {
-      min: 0
-    }
-  },
-  supplier: {
-    type: DataTypes.STRING,
-    allowNull: true
-  }
-}, {
-  tableName: 'items',
-  timestamps: true
-});
+module.exports = (sequelize) => {
+  const Item = sequelize.define("Item", {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    item_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    category: {
+      type: DataTypes.STRING,
+    },
+    quantity: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    reorder_level: {
+      type: DataTypes.INTEGER,
+      defaultValue: 5,
+    },
+    unit_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+    },
+    supplier: {
+      type: DataTypes.STRING,
+    },
+  });
 
-module.exports = Item;
+  return Item;
+};
