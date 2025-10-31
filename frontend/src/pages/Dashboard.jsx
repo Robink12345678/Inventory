@@ -12,15 +12,15 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    
+
     // Listen for refresh events from Transactions component
     const handleRefresh = () => {
       console.log("🔄 Dashboard refresh triggered");
       fetchDashboardData();
     };
-    
+
     window.addEventListener('dashboardRefresh', handleRefresh);
-    
+
     return () => {
       window.removeEventListener('dashboardRefresh', handleRefresh);
     };
@@ -32,7 +32,7 @@ const Dashboard = () => {
       setLoading(true);
 
       console.log("🔄 Fetching dashboard data...");
-      
+
       // ✅ CORRECTED: Use only the dashboard endpoint that has all data
       const response = await axios.get("http://localhost:5000/api/dashboard/get");
 
